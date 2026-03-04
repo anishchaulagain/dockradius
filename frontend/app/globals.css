@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ─── DockRadius Design System ─────────────────────────────────── */
-
+/* 
 :root {
   --dr-bg-primary: #0a0e17;
   --dr-bg-secondary: #111827;
@@ -30,7 +30,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
+} */
 
 /* ─── Base ─────────────────────────────────────────────────────── */
 
