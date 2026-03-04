@@ -97,4 +97,6 @@ class AnalyzeResponse(BaseModel):
 class ErrorResponse(BaseModel):
     """Structured error response."""
     error: str
+    command: Optional[str] = None
+    suggestion: Optional[str] = None
     supported_commands: list[str] = Field(default_factory=list)

@@ -22,6 +22,36 @@ SUPPORTED_COMMANDS: list[str] = [
     "docker volume create",
 ]
 
+ALLOWED_FLAGS: dict[str, set[str]] = {
+    "run": {"-d", "--detach", "-i", "--interactive", "-t", "--tty", "-p", "--publish", "-v", "--volume", "-e", "--env", "--name", "--network", "--rm", "--entrypoint", "--workdir", "-w", "-u", "--user", "-a", "--attach"},
+    "build": {"-t", "--tag", "-f", "--file", "--build-arg", "--no-cache", "--pull", "--push", "--target", "--label", "--ssh", "--secret"},
+    "exec": {"-i", "--interactive", "-t", "--tty", "-d", "--detach", "-u", "--user", "-e", "--env", "-w", "--workdir", "--privileged"},
+    "stop": {"-t", "--time"},
+    "rm": {"-f", "--force", "-l", "--link", "-v", "--volumes"},
+    "network create": {"-d", "--driver", "--gateway", "--subnet", "--ip-range", "--internal", "--attachable", "--label", "--opt"},
+    "volume create": {"-d", "--driver", "--label", "--opt"},
+}
+
+
+def _validate_flag(cmd_type: str, flag: str):
+    """Check if a flag is valid for the given command type."""
+    if not flag.startswith("-"):
+        return
+
+    allowed = ALLOWED_FLAGS.get(cmd_type, set())
+
+    # Handle long flags
+    if flag.startswith("--"):
+        if flag not in allowed:
+            raise DockerParserError(f"Unknown flag for 'docker {cmd_type}': {flag}")
+    else:
+        # Check each character in a short flag cluster (e.g., -it -> -i, -t)
+        for char in flag[1:]:
+            short_flag = f"-{char}"
+            if short_flag not in allowed:
+                raise DockerParserError(f"Unknown flag for 'docker {cmd_type}': {short_flag}")
+
+
 
 class DockerParserError(Exception):
     """Raised when a Docker command cannot be parsed."""
@@ -112,6 +142,9 @@ def _parse_run(tokens: list[str], raw: str) -> ParsedCommand:
     while i < len(tokens):
         tok = tokens[i]
 
+        if tok.startswith("-"):
+            _validate_flag("run", tok)
+
         if tok in ("-p", "--publish") and i + 1 < len(tokens):
             ports.append(tokens[i + 1])
             i += 2
@@ -160,6 +193,8 @@ def _parse_build(tokens: list[str], raw: str) -> ParsedCommand:
     i = 0
     while i < len(tokens):
         tok = tokens[i]
+        if tok.startswith("-"):
+            _validate_flag("build", tok)
         if tok in ("-t", "--tag") and i + 1 < len(tokens):
             image = tokens[i + 1]
             i += 2
@@ -192,6 +227,8 @@ def _parse_exec(tokens: list[str], raw: str) -> ParsedCommand:
     while i < len(tokens):
         tok = tokens[i]
         if tok.startswith("-"):
+            _validate_flag("exec", tok)
+        if tok.startswith("-"):
             flags.append(tok)
             i += 1
         elif container_name is None:
@@ -218,6 +255,7 @@ def _parse_simple(base_cmd: str, tokens: list[str], raw: str) -> ParsedCommand:
 
     for tok in tokens:
         if tok.startswith("-"):
+            _validate_flag(base_cmd, tok)
             flags.append(tok)
         elif container_name is None:
             container_name = tok
@@ -240,6 +278,7 @@ def _parse_network_create(tokens: list[str], raw: str) -> ParsedCommand:
 
     for tok in tokens:
         if tok.startswith("-"):
+            _validate_flag("network create", tok)
             flags.append(tok)
         elif network is None:
             network = tok
@@ -260,6 +299,7 @@ def _parse_volume_create(tokens: list[str], raw: str) -> ParsedCommand:
 
     for tok in tokens:
         if tok.startswith("-"):
+            _validate_flag("volume create", tok)
             flags.append(tok)
         elif volume_name is None:
             volume_name = tok
