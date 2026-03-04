@@ -6,6 +6,8 @@ import { Terminal, Play, Loader2 } from "lucide-react";
 interface CommandInputProps {
   onAnalyze: (command: string) => void;
   isLoading: boolean;
+  command: string;
+  setCommand: (cmd: string) => void;
 }
 
 const EXAMPLE_COMMANDS = [
@@ -19,8 +21,7 @@ const EXAMPLE_COMMANDS = [
   "docker rm mycontainer",
 ];
 
-export default function CommandInput({ onAnalyze, isLoading }: CommandInputProps) {
-  const [command, setCommand] = useState("");
+export default function CommandInput({ onAnalyze, isLoading, command, setCommand }: CommandInputProps) {
 
   const handleSubmit = () => {
     const trimmed = command.trim();

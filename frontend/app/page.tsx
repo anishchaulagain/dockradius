@@ -27,16 +27,22 @@ interface AnalyzeResponse {
 
 interface ApiError {
   error: string;
+  command?: string;
+  suggestion?: string | null;
   supported_commands?: string[];
 }
 
 export default function Home() {
+  const [command, setCommand] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [mermaidDiagram, setMermaidDiagram] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
 
-  const handleAnalyze = async (command: string) => {
+  const handleAnalyze = async (cmdToAnalyze?: string) => {
+    const finalCmd = cmdToAnalyze || command.trim();
+    if (!finalCmd) return;
+
     setIsLoading(true);
     setError(null);
     setMermaidDiagram(null);
@@ -44,7 +50,7 @@ export default function Home() {
 
     try {
       const response = await axios.post<AnalyzeResponse>(`${API_URL}/analyze`, {
-        command,
+        command: finalCmd,
       });
 
       setMermaidDiagram(response.data.mermaid);
@@ -54,6 +60,8 @@ export default function Home() {
         const data = err.response.data as ApiError;
         setError({
           error: data.error || "An unexpected error occurred",
+          command: data.command,
+          suggestion: data.suggestion,
           supported_commands: data.supported_commands,
         });
       } else {
@@ -64,6 +72,11 @@ export default function Home() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleUseSuggestion = (suggestion: string) => {
+    setCommand(suggestion);
+    handleAnalyze(suggestion);
   };
 
   return (
@@ -120,14 +133,19 @@ export default function Home() {
       {/* ─── Main Content ────────────────────────────────────── */}
       <main className="flex-1 flex overflow-hidden">
         {/* Left Panel — Command Input */}
-        <aside
+          <aside
           className="w-[340px] shrink-0 p-4 overflow-y-auto"
           style={{
             background: "var(--dr-bg-secondary)",
             borderRight: "1px solid var(--dr-border)",
           }}
         >
-          <CommandInput onAnalyze={handleAnalyze} isLoading={isLoading} />
+          <CommandInput 
+            onAnalyze={handleAnalyze} 
+            isLoading={isLoading} 
+            command={command}
+            setCommand={setCommand}
+          />
         </aside>
 
         {/* Right Content */}
@@ -135,7 +153,13 @@ export default function Home() {
           {/* Error Banner */}
           {error && (
             <div className="p-4 shrink-0">
-              <ErrorDisplay error={error.error} supportedCommands={error.supported_commands} />
+              <ErrorDisplay 
+                error={error.error} 
+                command={error.command}
+                suggestion={error.suggestion}
+                supportedCommands={error.supported_commands} 
+                onUseSuggestion={handleUseSuggestion}
+              />
             </div>
           )}
 

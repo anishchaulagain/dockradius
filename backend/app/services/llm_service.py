@@ -13,6 +13,7 @@ from groq import Groq
 from app.config import get_settings
 from app.models.schemas import ParsedCommand, AnalysisResult
 
+settings = get_settings()
 logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """You are DockRadius AI — a DevOps risk analysis assistant.
@@ -141,3 +142,46 @@ def _fallback_analysis(parsed: ParsedCommand) -> AnalysisResult:
         common_mistakes=[f"Running 'docker {cmd}' without understanding the full impact"],
         blast_radius_summary=f"Affects the Docker daemon and any resources referenced by this {cmd} command.",
     )
+
+
+def suggest_correction(command: str, error: str) -> Optional[str]:
+    """
+    Uses the LLM to suggest a corrected version of an invalid Docker command.
+    """
+    if not settings.GROQ_API_KEY:
+        return None
+
+    try:
+        client = Groq(api_key=settings.GROQ_API_KEY)
+        
+        prompt = f"""
+        You are a Docker CLI expert. A user entered an invalid Docker command.
+        Command: {command}
+        Error: {error}
+
+        Task: Provide ONLY the corrected Docker command string that achieves what the user likely intended, but with valid syntax and flags. 
+        If the command is fundamentally unsalvageable, return "null".
+        Do not include any explanation or markdown formatting. Just the command string.
+        """
+
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that corrects Docker CLI commands."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.1,
+            max_tokens=100,
+        )
+
+        suggestion = response.choices[0].message.content.strip()
+        if suggestion.lower() == "null" or not suggestion.startswith("docker"):
+            return None
+            
+        # Clean up any quotes or backticks if LLM didn't follow instructions perfectly
+        suggestion = suggestion.strip("`'\"")
+        return suggestion
+
+    except Exception as e:
+        logger.error(f"Failed to suggest correction: {e}")
+        return None

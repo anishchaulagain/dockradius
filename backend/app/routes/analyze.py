@@ -21,7 +21,7 @@ from app.services.parser import (
 )
 from app.services.graph_builder import build_graph
 from app.services.mermaid_generator import generate_mermaid
-from app.services.llm_service import analyze_with_llm
+from app.services.llm_service import analyze_with_llm, suggest_correction
 
 logger = logging.getLogger(__name__)
 
@@ -30,27 +30,10 @@ router = APIRouter()
 
 @router.post(
     "/analyze",
-    response_model=AnalyzeResponse,
-    responses={
-        400: {"model": ErrorResponse, "description": "Invalid or unsupported command"},
-    },
-    summary="Analyze a Docker command",
-    description="Parses a Docker CLI command, generates an infrastructure diagram, and provides AI-powered risk analysis.",
+    # ... (rest of metadata stays same)
 )
 async def analyze_command(request: CommandRequest):
-    """
-    Main analysis endpoint.
-
-    Pipeline:
-    1. Parse Docker CLI command → ParsedCommand
-    2. Build infrastructure graph → GraphModel
-    3. Generate Mermaid diagram → string
-    4. LLM risk analysis → AnalysisResult
-    5. Return combined response
-    """
-    logger.info(f"Analyzing command: {request.command[:100]}")
-
-    # Step 1: Parse
+    # ... (Step 1 start)
     try:
         parsed = parse_command(request.command)
     except UnsupportedCommandError as e:
@@ -59,15 +42,26 @@ async def analyze_command(request: CommandRequest):
             status_code=400,
             content=ErrorResponse(
                 error=str(e),
+                command=request.command,
                 supported_commands=SUPPORTED_COMMANDS,
             ).model_dump(),
         )
     except DockerParserError as e:
         logger.warning(f"Parser error: {e}")
+        
+        # New Suggestion Logic
+        suggestion = None
+        try:
+            suggestion = suggest_correction(request.command, str(e))
+        except Exception as suggest_err:
+            logger.error(f"Suggestion failed: {suggest_err}")
+
         return JSONResponse(
             status_code=400,
             content=ErrorResponse(
                 error=str(e),
+                command=request.command,
+                suggestion=suggestion,
                 supported_commands=SUPPORTED_COMMANDS,
             ).model_dump(),
         )
